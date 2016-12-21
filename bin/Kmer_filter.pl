@@ -28,8 +28,8 @@ use Fastq::Parser;
 use Fastq::Seq;
 use Jellyfish;
 use Kmer;
-use Verbose::ProgressBar;
-
+#use Verbose::ProgressBar;
+use Term::ProgressBar;
 
 our $VERSION = '0.02';
 
@@ -320,16 +320,35 @@ unless(@opt_mates){
 		my $fp1 = Fastq::Parser->new(file => $opt_reads[$FC]);
 		open (FQ1, '>', $out_file1) or $L->logcroak("$!");
 
+
+		my $pg_count = -1;
+
+		if (defined($opt_reads[$FC])) {
+                    open(my $in_fh, $opt_reads[$FC]) or die "Couldn't open file, '$opt_reads[$FC]: $!";
+                    my $wc_output = `wc -l $opt_reads[$FC]`;
+                    chomp($wc_output);
+                    $wc_output =~ /^\s*(\d+)(\D.*)?/ or die "Couldn't parse wc output: $wc_output";
+                    $pg_count = $1/4;
+                    close $in_fh or die;
+                }
+
+
 		my $pgc = 0;
-		my $pg = Verbose::ProgressBar->new(
-			size => $fp1->fh,
-			level => 2,
-			report_level => $opt{quiet} ? 0 : 2,
-		);
+		
+		my $pg = Term::ProgressBar->new({
+		    name => 'kmer-filter-reads_single',
+		    count => $pg_count,
+		    #level => 2,
+		    #report_level => $opt{quiet} ? 0 : 2,
+		    ETA => 'linear',
+						});
+
+		$pg->max_update_rate(2);
+
 
 		while(my $fq1 = $fp1->next_seq){
 			$rct++;
-			$pg->update unless $pgc++%10000;
+			$pg->update #unless $pgc++%10000;
 			
 			my $c=0;
 			$c+= exists $K{$_} for $km->cmerize($fq1->seq),
@@ -349,7 +368,7 @@ unless(@opt_mates){
 			}
 			
 		}
-		$pg->finish;
+		$pg->update($pg_count);
 		close FQ1;
 	}	
 }else{
@@ -363,18 +382,40 @@ unless(@opt_mates){
 		open (FQ2, '>', $out_file2) or $L->logcroak("$!");
 
 		my $pgc=0;
-		my $pg = Verbose::ProgressBar->new(
-			size => $fp1->fh,
-			level => 2,
-			report_level => $opt{quiet} ? 0 : 2
-		);
+		my $pg_count = -1;
+
+
+		if (defined($opt_reads[$FC])) {
+                    open(my $in_fh, $opt_reads[$FC]) or die "Couldn't open file, '$opt_reads[$FC]: $!";
+                    my $wc_output = `wc -l $opt_reads[$FC]`;
+                    chomp($wc_output);
+                    $wc_output =~ /^\s*(\d+)(\D.*)?/ or die "Couldn't parse wc output: $wc_output";
+                    $pg_count = $1/4;
+                    close $in_fh or die;
+                }
+
+
+
+
+
+		my $pg = Term::ProgressBar->new({
+		    name => 'kmer-filter-reads_paired',
+		    count => $pg_count,
+			#level => 2,
+			#report_level => $opt{quiet} ? 0 : 2,
+		    ETA => 'linear',
+						});
+
+
+		$pg->max_update_rate(2);
+
 		
 		while(
 			(my $fq1 = $fp1->next_seq) &&
 			(my $fq2 = $fp2->next_seq)
 		){
 			$rct++;
-			$pg->update unless $pgc++%10000;
+			$pg->update #unless $pgc++%10000;
 			
 			my $c1=0;
 			my $c2=0;
@@ -398,7 +439,7 @@ unless(@opt_mates){
 				}
 			}
 		}
-		$pg->finish;
+		$pg->update($pg_count);
 		close FQ1;
 		close FQ2;
 	}
