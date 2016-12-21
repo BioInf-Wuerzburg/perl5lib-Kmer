@@ -3,9 +3,13 @@ package Kmer;
 use warnings;
 use strict;
 
-use Verbose;
+#use Verbose;
+use Log::Log4perl qw(:easy);
 
 our $VERSION = '0.02';
+
+
+my $L = Log::Log4perl::get_logger();
 
 
 ##------------------------------------------------------------------------##
@@ -142,8 +146,8 @@ sub new{
 		_u_size => undef,
 	};
 	
-	die "kmer_size required" unless $self->{kmer_size};
-	die "shift_by needs to be INT >= 1" unless $self->{shift_by} > 0;
+	$L->logdie( "kmer_size required") unless $self->{kmer_size};
+	$L->logdie( "shift_by needs to be INT >= 1") unless $self->{shift_by} > 0;
 	
 	
 	bless $self, $proto;
@@ -200,7 +204,7 @@ Factor a STRING into a LIST of overlapping kmers. Kmers are returned in
 sub kmerize{
 	my ($self,$seq) = @_;
 	chomp($seq);
-	die "$seq shorter than kmer-size" unless length($seq) > $self->{kmer_size};
+	$L->logdie( "$seq shorter than kmer-size") unless length($seq) > $self->{kmer_size};
 
 	return unpack($self->{_u_tpl}{length $seq} || $self->_create_u_tpl(length $seq), $seq);
 }
@@ -220,7 +224,7 @@ Factor a STRING into a LIST of overlapping kmers. Kmers are returned in
 sub cmerize{
 	my ($self,$seq) = @_;
 	chomp($seq);
-	die "$seq shorter than kmer-size" unless length($seq) > $self->{kmer_size};
+	$L->logdie( "$seq shorter than kmer-size") unless length($seq) > $self->{kmer_size};
 
 	map{
 		my $krc = reverse $_; $krc =~ tr/ATGC/TACG/; $_ gt $krc ? $krc : $_
