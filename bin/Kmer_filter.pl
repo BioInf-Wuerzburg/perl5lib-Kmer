@@ -264,23 +264,44 @@ my $khash = $opt{'perl-hash'};
 
 if($khash){
 	$L->info("Loading kmer hash");
+
+	my $next_update = 0;
+	my $km_pg_count = -s $opt{'kmer-hash'};
+        my $km_pg = Term::ProgressBar->new({
+            name => 'Loading kmer hash',
+            count => $km_pg_count,
+            ETA => 'linear',
+            term_width => 100,
+                                           });
+
+
 	my $kfh = $jf->dump([
 			qw(-c -t), 						# column, tab separated
 			$opt_l ? ("-L", $opt_l) : (), 	# lower cutoff
 			$opt_u ? ("-U", $opt_u) : (), 	# upper cutoff
 			$opt{'kmer-hash'}				# hash
 		]);
-	if($opt{'penalize-N'}){
-		while(<$kfh>){
-			my ($k, $v) = split("\t", $_);
-			$K{$k} = $v	unless $k =~ tr/N//;
-		}
-	}else{
-		while(<$kfh>){
-			my ($k, $v) = split("\t", $_);
-			$K{$k} = $v;
-		}
+#	if($opt{'penalize-N'}){
+#		while(<$kfh>){
+#			my ($k, $v) = split("\t", $_);
+#			$K{$k} = $v	unless $k =~ tr/N//;
+#		}
+#	}else{
+	while(<$kfh>){
+	    my ($k, $v) = split("\t", $_);
+	    unless ($opt{'penalize-N'} && $k =~ tr/N//){
+		$K{$k} = $v;
+	    }
+	    my $km_pg_tell = tell($kfh);
+			
+	    if ($km_pg_tell >= $next_update){
+		
+		$next_update = $km_pg->update($km_pg_tell);
+	    }
+	    
 	}
+	$km_pg->update($km_pg_count);
+
 	$L->info(scalar keys %K," distinct kmers loaded");
 }
 
@@ -321,34 +342,32 @@ unless(@opt_mates){
 		open (FQ1, '>', $out_file1) or $L->logcroak("$!");
 
 
-		my $pg_count = -1;
-
-		if (defined($opt_reads[$FC])) {
-                    open(my $in_fh, $opt_reads[$FC]) or die "Couldn't open file, '$opt_reads[$FC]: $!";
-                    my $wc_output = `wc -l $opt_reads[$FC]`;
-                    chomp($wc_output);
-                    $wc_output =~ /^\s*(\d+)(\D.*)?/ or die "Couldn't parse wc output: $wc_output";
-                    $pg_count = $1/4;
-                    close $in_fh or die;
-                }
-
-
 		my $pgc = 0;
+		my $pg_count = -s $opt_reads[$FC];
+		my $count_pg = 0;
+		my $next_update = 0;
 		
+
 		my $pg = Term::ProgressBar->new({
 		    name => 'kmer-filter-reads_single',
 		    count => $pg_count,
-		    #level => 2,
+		    term_width => 100,
 		    #report_level => $opt{quiet} ? 0 : 2,
 		    ETA => 'linear',
 						});
 
-		$pg->max_update_rate(2);
+	#	$pg->max_update_rate(2);
 
 
 		while(my $fq1 = $fp1->next_seq){
 			$rct++;
-			$pg->update #unless $pgc++%10000;
+			$count_pg = $count_pg + length($fq1->string); 
+			
+			if($count_pg >= $next_update){
+			    
+			    $next_update = $pg->update($count_pg);
+			    
+			}
 			
 			my $c=0;
 			$c+= exists $K{$_} for $km->cmerize($fq1->seq),
@@ -382,32 +401,22 @@ unless(@opt_mates){
 		open (FQ2, '>', $out_file2) or $L->logcroak("$!");
 
 		my $pgc=0;
-		my $pg_count = -1;
-
-
-		if (defined($opt_reads[$FC])) {
-                    open(my $in_fh, $opt_reads[$FC]) or die "Couldn't open file, '$opt_reads[$FC]: $!";
-                    my $wc_output = `wc -l $opt_reads[$FC]`;
-                    chomp($wc_output);
-                    $wc_output =~ /^\s*(\d+)(\D.*)?/ or die "Couldn't parse wc output: $wc_output";
-                    $pg_count = $1/4;
-                    close $in_fh or die;
-                }
-
-
+		my $pg_count = -s $opt_reads[$FC];
+		my $count_pg = 0;
+		my $next_update = 0;
 
 
 
 		my $pg = Term::ProgressBar->new({
 		    name => 'kmer-filter-reads_paired',
 		    count => $pg_count,
-			#level => 2,
+		    term_width => 100,
 			#report_level => $opt{quiet} ? 0 : 2,
 		    ETA => 'linear',
 						});
 
 
-		$pg->max_update_rate(2);
+	#	$pg->max_update_rate(2);
 
 		
 		while(
@@ -415,7 +424,16 @@ unless(@opt_mates){
 			(my $fq2 = $fp2->next_seq)
 		){
 			$rct++;
-			$pg->update #unless $pgc++%10000;
+		
+			$count_pg = $count_pg + length($fq1->string); 
+			
+			if($count_pg >= $next_update){
+			    
+			    $next_update = $pg->update($count_pg);
+			   
+			}
+
+
 			
 			my $c1=0;
 			my $c2=0;
